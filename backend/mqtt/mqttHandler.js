@@ -31,17 +31,10 @@ class MqttHandler {
             if (punto) puntoCompraId = punto.id;
           }
 
-          let u_fdr = data.humedad;
-          let m_neto = data.peso;
-          let V = 0.0005;
-          let rho = m_neto / V;
-
-          let humedad_compensada = -0.4692 + (1.0971 * u_fdr) - (0.000323 * rho);
-          if (humedad_compensada < 0) humedad_compensada = 0;
-          if (humedad_compensada > 100) humedad_compensada = 100;
+          let humedad_final = data.humedad;
 
           const medicionGuardada = await MedicionRepository.guardarMedicion({
-            humedad: parseFloat(humedad_compensada.toFixed(2)),
+            humedad: parseFloat(humedad_final),
             temperatura: data.temperatura,
             peso: data.peso,
             punto_compra_id: puntoCompraId

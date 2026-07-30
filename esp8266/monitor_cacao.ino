@@ -133,9 +133,8 @@ void loop() {
   display.clearDisplay();
   
   if (byteCount >= 7) {
-    // Unir los dos bytes de Humedad (Posiciones 3 y 4)
     int humedadRaw = (responseBuffer[3] << 8) | responseBuffer[4];
-    float humedadReal = humedadRaw / 10.0;
+    float u_fdr = humedadRaw / 10.0;
 
     // Unir los dos bytes de Temperatura (Posiciones 5 y 6)
     int tempRaw = (responseBuffer[5] << 8) | responseBuffer[6];
@@ -145,17 +144,24 @@ void loop() {
     float peso = scale.get_units(5); // Promedio de 5 lecturas
     if (peso < 0) peso = 0; // Evitar valores negativos por ruido
 
+    float V = 0.0005;
+    float rho = peso / V;
+    float humedad_compensada = -0.4692 + (1.0971 * u_fdr) - (0.000323 * rho);
+    
+    if (humedad_compensada < 0) humedad_compensada = 0;
+    if (humedad_compensada > 100) humedad_compensada = 100;
+
     // Dibujar en OLED
     display.setTextSize(1);
     display.setCursor(0, 0);
     display.println("MONITOR DE CACAO");
     display.drawLine(0, 10, 128, 10, SSD1306_WHITE);
     
-    // Mostramos Humedad, Temperatura y Peso
+    // Mostramos Humedad Compensada, Temperatura y Peso
     display.setTextSize(2);
     display.setCursor(0, 14);
     display.print("H:");
-    display.print(humedadReal, 1);
+    display.print(humedad_compensada, 1);
     display.println("%");
 
     display.setCursor(0, 31);
@@ -173,7 +179,7 @@ void loop() {
       String json = "{\"tipo\":\"medicion\",\"esp_id\":\"";
       json += ESP_ID;
       json += "\",\"humedad\":";
-      json += String(humedadReal, 1);
+      json += String(humedad_compensada, 1);
       json += ",\"temperatura\":";
       json += String(tempReal, 1);
       json += ",\"peso\":";
