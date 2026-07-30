@@ -14,9 +14,8 @@
 #define LOADCELL_SCK_PIN D4
 HX711 scale;
 
-// ---------------- IDENTIFICADOR DEL EQUIPO ----------------
-// CAMBIAR ESTE ID PARA CADA PLACA NUEVA SEGÚN LO CREADO EN EL PANEL
-#define ESP_ID "PUNTO-01" 
+
+#define ESP_ID "PUNTO-E8271F" 
 
 // ---------------- PINES DEL MAX485 ----------------
 #define RX_PIN D5    
