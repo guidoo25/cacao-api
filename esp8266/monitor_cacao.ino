@@ -4,16 +4,15 @@
 #include <Adafruit_SSD1306.h>
 #include <HX711.h>
 
-// Librerías de WiFi y WebSockets
+// Librerías de WiFi y MQTT
 #include <ESP8266WiFi.h>
 #include <WiFiManager.h>
-#include <WebSocketsClient.h>
+#include <PubSubClient.h>
 
 // ---------------- PINES DEL HX711 ----------------
 #define LOADCELL_DOUT_PIN D3
 #define LOADCELL_SCK_PIN D4
 HX711 scale;
-
 
 #define ESP_ID "PUNTO-E8271F" 
 
@@ -29,10 +28,13 @@ HX711 scale;
 
 SoftwareSerial modbus(RX_PIN, TX_PIN);
 Adafruit_SSD1306 display(ANCHO_PANTALLA, ALTO_PANTALLA, &Wire, OLED_RESET);
-WebSocketsClient webSocket;
 
-const char* ws_host = "192.168.100.126"; 
-const int ws_port = 3001;
+// Cliente WiFi y MQTT
+WiFiClient espClient;
+PubSubClient mqttClient(espClient);
+
+const char* mqtt_server = "192.168.100.126"; // IP del servidor Node.js/Mosquitto
+const int mqtt_port = 1883;
 
 byte requestFrame[] = {0x01, 0x03, 0x00, 0x00, 0x00, 0x02, 0xC4, 0x0B}; 
 byte responseBuffer[11]; // Arreglo para guardar los bytes que llegan
@@ -40,14 +42,19 @@ byte responseBuffer[11]; // Arreglo para guardar los bytes que llegan
 unsigned long lastSendTime = 0;
 const unsigned long SEND_INTERVAL = 5000; // Enviar cada 5 segundos al servidor
 
-void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
-  switch(type) {
-    case WStype_DISCONNECTED:
-      Serial.println("[WS] Desconectado!");
-      break;
-    case WStype_CONNECTED:
-      Serial.println("[WS] Conectado al servidor!");
-      break;
+void reconnectMQTT() {
+  // Loop until we're reconnected
+  while (!mqttClient.connected()) {
+    Serial.print("Intentando conexión MQTT...");
+    // Attempt to connect
+    if (mqttClient.connect(ESP_ID)) {
+      Serial.println("conectado");
+    } else {
+      Serial.print("falló, rc=");
+      Serial.print(mqttClient.state());
+      Serial.println(" reintentando en 5 segundos");
+      delay(5000);
+    }
   }
 }
 
@@ -96,14 +103,15 @@ void setup() {
   display.display();
   delay(2000);
 
-  // Inicializar WebSockets
-  webSocket.begin(ws_host, ws_port, "/");
-  webSocket.onEvent(webSocketEvent);
-  webSocket.setReconnectInterval(5000);
+  // Inicializar MQTT
+  mqttClient.setServer(mqtt_server, mqtt_port);
 }
 
 void loop() {
-  webSocket.loop(); // Mantener vivo el WebSocket
+  if (!mqttClient.connected()) {
+    reconnectMQTT();
+  }
+  mqttClient.loop(); // Mantener viva la conexión MQTT
   
   // 1. Enviar petición Modbus
   digitalWrite(RE_DE_PIN, HIGH); 
@@ -160,7 +168,7 @@ void loop() {
     display.print(peso, 2);
     display.println("kg");
 
-    // Enviar por WebSocket si ha pasado el intervalo
+    // Enviar por MQTT si ha pasado el intervalo
     if (millis() - lastSendTime > SEND_INTERVAL) {
       String json = "{\"tipo\":\"medicion\",\"esp_id\":\"";
       json += ESP_ID;
@@ -172,9 +180,9 @@ void loop() {
       json += String(peso, 2);
       json += "}";
       
-      webSocket.sendTXT(json);
+      mqttClient.publish("cacao/recepcion", json.c_str());
       lastSendTime = millis();
-      Serial.println("Dato enviado WS: " + json);
+      Serial.println("Dato publicado MQTT: " + json);
     }
   } else {
     display.setTextSize(1);

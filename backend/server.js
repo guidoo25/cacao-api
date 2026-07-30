@@ -16,13 +16,17 @@ const puntoCompraRoutes = require('./routes/puntoCompraRoutes');
 const ordenRoutes = require('./routes/ordenRoutes');
 const AuthController = require('./controllers/AuthController');
 const WebSocketHandler = require('./websockets/websocketHandler');
+const MqttHandler = require('./mqtt/mqttHandler');
 const cors = require('cors');
 
 const app = express();
 const server = http.createServer(app);
 
-// Inicializar WebSockets
-new WebSocketHandler(server);
+// Inicializar WebSockets para el Frontend
+const wsHandler = new WebSocketHandler(server);
+
+// Inicializar MQTT para recibir datos del ESP8266 y pasarle el wsHandler para broadcast
+const mqttHandler = new MqttHandler(wsHandler);
 
 app.use(cors());
 app.use(express.json());
